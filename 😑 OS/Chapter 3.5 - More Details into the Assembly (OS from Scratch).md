@@ -128,3 +128,123 @@ print_done:
     popa            ; Get back reg vals
     ret             ; return to caller
 ```
+
+# Printing HEX
+Printing hex required extra formatting of the data.
+The objective was to print the hex value of a register.
+Suppose register dx has value 0xAB19, our job is to create a subroutine to print it.
+
+```x86-asm
+MOV dx, 0xAB19
+call print_hex
+	...
+```
+Expected Output:
+```
+ab19
+```
+
+To print, we will be using interrupt just like above, now to print anything using the INT 0x10 we need to have the data in ASCII Value.
+
+So our job is to modify the raw hex to ascii.
+Below is a table containing the hex values of our decimal digits and their binary codes.
+![[Pasted image 20241206211454.png]]
+
+As we can see that 0 - 9 is 30 - 39 and a - f is 61 - 66 in ascii
+So for 0 - 9 we simply need to add/unmask 0x30H using the OR operation
+```x86-asm
+or bx, 0x0030       ; Add 3H for ascii num(0d - 9d: 30H-39H)
+```
+
+For a - f, However we need to modify to 1 - 6.
+Here we can use a concept from the HEX to BCD converter.
+To Convert any HEX number to BCD we Added the HEX Value with 6.
+So If Suppose we ADD 6 with A, we get 10
+![[Pasted image 20241206212257.png]]
+
+Same with
+	B + 6 = 11
+	C + 6 = 12
+	D + 6 = 13
+
+With this concept we can ADD 7, for the offset of 1, as A is 61 and Mask the extra Carry
+And add/unmask 0x60 using OR
+```x86-asm
+add bx, 0x0007      ; Add 6 to convert number to BCD + 1 offset as A = 61
+and bx, 0x000F      ; Mask Any Carry Generated
+or bx, 0x0060       ; Add 6H for ascii num(Ah - Fd: 61H-66H)
+```
+
+Now that the conversion part is completed we need to focus on the shifting and looping the 16bit value to access print, the HEX Value first and the Last one at last.
+Some Key Instruction to Note of:
+1. SHR -> shifts the content of the register(8/16/32) to **RIGHT** by `n` number of bits specified in the cl(lower order of the "Counter" register)
+	- **Operands**: shr cl, r/m(8 | 16 | 32)
+	- **Example**: 
+```x86-asm
+mov cl, 12          ; Shift bx by 12 digits. bx = 0x2000 -> 0x0002
+shr bx, cl
+```
+
+
+2. SHL -> shifts the content of the register(8/16/32) to **LEFT** by `n` number of bits specified in the cl(lower order of the "Counter" register) or Immediate 8-bit Data
+	- **Operands**: shl cl/imm8, r/m(8 | 16 | 32)
+	- **Example**: 
+```x86-asm
+mov cl, 12          ; Shift bx by 12 digits. bx = 0x0002 -> 0x2000
+shl bx, cl
+```
+
+3. DEC -> Decrement any register by 1
+	- **Operands**: dec r/m(8 | 16 | 32)
+	- **Example**:
+```x86-asm
+mov ch, 0x04        ; set counter to 4 
+dec ch              ; ch = 3
+```
+
+**Final Print Hex Code:**
+print/print_hex.asm:
+```x86-asm
+print_hex:
+    pusha               ; Save Register Values
+    mov ah, 0x0e        ; Set to Print type
+    mov ch, 0x04        ; set counter to 4 for loop
+print_hex_loop:  
+; Access HEX by masking
+    mov bx, dx          ; Preserve Value of dx
+    and bx, 0xF000      ; Mask All Except First Number (1111 0000 0000 000)
+
+; Check if Number >= A
+    cmp bx, 0xA000      ; Check if number >= A
+    jnc format_for_alpha  
+
+; Modify to Set HEX Format 3_ where _ is the number
+    mov cl, 12          ; Shift bx by 12 digits. bx = 0x2000 -> 0x0002
+    shr bx, cl
+    or bx, 0x0030       ; Add 3H for ascii num(0d - 9d: 30H-39H)
+    jmp print_hex_val
+ 
+format_for_alpha:
+    mov cl, 12          ; Shift bx by 13 digits. bx = 0x2000 -> 0x0002
+    shr bx, cl
+    add bx, 0x0007      ; Add 6 to convert number to BCD + 1 offset as A = 61
+    and bx, 0x000F      ; Mask Any Carry Generated
+    or bx, 0x0060       ; Add 6H for ascii num(Ah - Fd: 61H-66H)
+  
+print_hex_val:
+    mov al, bl          ; Move data to al
+    int 0x10            ; Set int to print
+    mov cl, 4           ; Set CL to 4 (Shift Register bx by 4 bits to left)  
+                        ; This allows access of each number
+
+; Update Loop Counter and Shift Values
+    mov cl, 4
+    shl dx, cl
+    dec ch
+    cmp ch, 0
+    jne print_hex_loop          
+
+; Return Back Once Loop Done
+    popa
+    ret
+```
