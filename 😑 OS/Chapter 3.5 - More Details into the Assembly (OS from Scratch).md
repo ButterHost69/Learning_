@@ -248,3 +248,59 @@ print_hex_val:
     popa
     ret
 ```
+
+
+# 3.6 Reading 
+---
+## 3.6.1 Reading from Memory
+Our typical register size is of 16bits, this allows us to access a total memory size of 2^16 = 64KB.
+This is not a lot, to expand our memory access range we use segment registers.
+### Segment Registers
+Segment Registers are Special Registers that add an additional offset to your registers.
+So our actual absolute address = (segment_address * 16) + register
+Using this, we extend our memory to 1MB (0xffff * 16 + 0xffff)
+**Note: Any HEX * 16 = left shift. (E.g. 0x42 * 16 =  0x420)**
+There are a total of 4 Segment Registers:
+1. **CS: Code Segment** register is a register used calculating absolute code address using the instruction pointer(IP). Code Segment Register cannot be directly modified. Instructions that do modify are ljmp, lcals, lref etc...
+2. **DS: Data Segment** register is used implicitly when using immediate address mode(including labels). In instructions like `mov bx, [0x0919]` the absolute address is calculated using the DS register. You can directly modify the ds register
+3. **SS: Stack Segment** register, similar to DS but for stack
+4. **ES: General Purpose** Segment. Needs to be specified in the instruction when used. E.g. `mov al, [es:0x0919]`
+
+**Note: You cannot using immediate data to change the value of ds, you will have to use register mode.**
+**E.g.**
+```x86-asm
+mov bx , 0 x7c0 ; Can ’t set ds directly , so set bx 
+mov ds , bx     ; then copy bx to ds. 
+mov al , [ the_secret ]
+```
+
+
+## 3.6.2 Reading from the Disk Drives
+So a Hard Disk looks like this:
+![[Pasted image 20241207215048.png]]
+
+The Hard disk is generally divide into 3 components:
+1. Cylinder/Track : Describes the distance to move the head from outer edge.
+2. Head: Head describes the platter number
+3. Sector: Circular track that is divided into 512 bytes
+This can be used similarly for floppy disks too, but I am not too sure.
+### Using BIOS to Read the Disk
+Just like with displaying characters, we can take the help of the BIOS by using interrupts.
+This interrupt requires some key register initialization.
+1. ah = 0x02 : Type of interrupt (BIOS read sector function)
+2. al: Number of Sectors to read (base: 1)
+3. ch: Select Cylinder Number (base: 0)
+4. dh: Select Head (base: 0)
+5. cl: Start Sector Number (base: 1??)
+6. int = 0x13: BIOS Interrupt - BIOS Read
+
+**Code E.g. (From Text Book):**
+```x86-asm
+disk_load : 
+	mov ah , 0x02 ; BIOS read sector function 
+	mov al , dh   ; Read DH sectors 
+	mov ch , 0x00 ; Select cylinder 0 
+	mov dh , 0x00 ; Select head 0 
+	mov cl , 0x02 ; Start reading from second sector ( i.e. ; after the boot sector ) 
+	int 0 x13     ; BIOS interrupt 
+```
