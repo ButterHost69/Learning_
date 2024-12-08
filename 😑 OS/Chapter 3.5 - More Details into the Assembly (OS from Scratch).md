@@ -294,13 +294,27 @@ This interrupt requires some key register initialization.
 5. cl: Start Sector Number (base: 1??)
 6. int = 0x13: BIOS Interrupt - BIOS Read
 
-**Code E.g. (From Text Book):**
+#### Code E.g. (From Text Book):
 ```x86-asm
+; load sectors to ES:BX from drive DL
 disk_load : 
 	mov ah , 0x02 ; BIOS read sector function 
-	mov al , dh   ; Read DH sectors 
+	mov al , dh   ; Read DH number of sectors 
 	mov ch , 0x00 ; Select cylinder 0 
 	mov dh , 0x00 ; Select head 0 
+	mov dl , 0x80 ; Select Device [0x00:Floppy drive, 0x80:First hard disk, 0x81:Second hard disk, and so on.]
 	mov cl , 0x02 ; Start reading from second sector ( i.e. ; after the boot sector ) 
-	int 0 x13     ; BIOS interrupt 
+	int 0x13     ; BIOS interrupt 
 ```
+**Note: when boot sector is loaded the dl is set by the BIOS with the device selected**
+#### Result
+- The data is than stored at address ES:BX.
+	**Note: ES is a segment register, so Absolute Address = ES * 16 + BX**
+- If there is an error, the **Carry Flag(CF)** = 1
+- AL = number of segments actually read
+	**Note: if AL != < no of segments inputted > there is an error**
+**NOTE:**
+**If there is an error, the error code will be displayed in the `AH` Register**
+![[Pasted image 20241208215343.png]]
+
+
