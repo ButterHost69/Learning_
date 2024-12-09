@@ -315,6 +315,6 @@ disk_load :
 	**Note: if AL != < no of segments inputted > there is an error**
 **NOTE:**
 **If there is an error, the error code will be displayed in the `AH` Register**
-![[Pasted image 20241208215343.png]]
+![[Pasted image 20241209223013.png]]
 
 
